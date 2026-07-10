@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+bc_utils = {path = "../bc_utils"}
 bc_utils_lg = {path = "../bc_utils_lg"}
 bc_signals = {path = "../bc_signals"}
 bc_indicators = {path = "../bc_indicators"}

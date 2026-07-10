@@ -1,5 +1,6 @@
 use bc_indicators::prelude::Indicator;
 use bc_signals::train::prelude::*;
+use bc_utils::other::{transpose, vec_len_sync_set};
 use bc_utils_lg::structs::settings::{SETTINGS_INDS, SETTINGS_SIGNAL, SETTINGS_SIGNALS};
 use bc_utils_lg::{
     structs::settings::SETTINGS,
@@ -46,18 +47,8 @@ pub fn get_signals_arg_from_settings<'a>(
             .collect();
     }
     if !res.is_empty() {
-        let min_len = res
-            .iter()
-            .map(|v| v.len())
-            .min()
-            .expect("this is nan or wtf");
-        res = res
-            .into_iter()
-            .map(|v| v[v.len() - min_len..].to_vec())
-            .collect::<Vec<Vec<f64>>>();
-        return (0..min_len)
-            .map(|i| res.iter().map(|v1| v1[i].clone()).collect::<Vec<f64>>())
-            .collect::<Vec<Vec<f64>>>();
+        vec_len_sync_set(&mut res);
+        return transpose(res);
     }
     Default::default()
 }
@@ -284,7 +275,7 @@ mod tests {
     use bc_signals::train::mm::MM;
     use bc_utils_lg::statics::prices::{SRC, SRC_TRANSPOSE};
     use bc_utils_lg::structs::settings::{
-        SETTINGS_IND, SETTINGS_INDS, SETTINGS_SIGNAL, SETTINGS_SIGNALS, SETTINGS_USED_SRC,
+        SETTINGS_IND, SETTINGS_INDS, SETTINGS_SIGNAL, SETTINGS_SIGNALS, SETTINGS_USED_STRING_USIZE,
     };
     use bc_utils_lg::types::maps::MAP;
     use pretty_assertions::assert_eq as assert_eq_pr;
@@ -312,7 +303,7 @@ mod tests {
                 "trend_ma_1".to_string(),
                 SETTINGS_IND {
                     key: "trend_ma".to_string(),
-                    used_src: vec![SETTINGS_USED_SRC { index: 1, sub_from_last_i: 0 }],
+                    used_src: vec![SETTINGS_USED_STRING_USIZE { index: 1, sub_from_last_i: 0 }],
                     ..Default::default()
                 },
             ),
@@ -321,7 +312,7 @@ mod tests {
                 SETTINGS_IND {
                     key: "repeat".to_string(),
                     kwargs_f64: MAP::from_iter([("value".to_string(), 1.0)]),
-                    used_src: vec![SETTINGS_USED_SRC { index: 1, sub_from_last_i: 0 }],
+                    used_src: vec![SETTINGS_USED_STRING_USIZE { index: 1, sub_from_last_i: 0 }],
                     ..Default::default()
                 },
             ),
@@ -379,7 +370,7 @@ mod tests {
                 "trend_ma_1".to_string(),
                 SETTINGS_IND {
                     key: "trend_ma".to_string(),
-                    used_src: vec![SETTINGS_USED_SRC { index: 1, sub_from_last_i: 0 }],
+                    used_src: vec![SETTINGS_USED_STRING_USIZE { index: 1, sub_from_last_i: 0 }],
                     ..Default::default()
                 },
             ),
@@ -388,7 +379,7 @@ mod tests {
                 SETTINGS_IND {
                     key: "repeat".to_string(),
                     kwargs_f64: MAP::from_iter([("value".to_string(), 1.0)]),
-                    used_src: vec![SETTINGS_USED_SRC { index: 1, sub_from_last_i: 0 }],
+                    used_src: vec![SETTINGS_USED_STRING_USIZE { index: 1, sub_from_last_i: 0 }],
                     ..Default::default()
                 },
             ),
