@@ -4,20 +4,20 @@ use bc_pack_indicators::FUNCS_EXTRACT_ARGS as FUNCS_EXTRACT_ARGS_IND;
 use bc_pack_signals_ready::FUNCS_EXTRACT_ARGS as FUNCS_EXTRACT_ARGS_SR;
 use bc_utils_lg::statics::prices::SRC_TRANSPOSE;
 use bc_utils_lg::structs::settings::{
-    SETTINGS_IND, SETTINGS_INDS, SETTINGS_SIGNAL, SETTINGS_SIGNALS, SETTINGS_USED_STRING_USIZE,
+    SETTINGS_IND, SETTINGS_INDS, SETTINGS_SIGNAL, SETTINGS_SIGNALS, SETTINGS_USED_USIZE,
 };
 use bc_utils_lg::types::maps::MAP;
 use criterion::{Criterion, criterion_group, criterion_main};
 
 use bc_indicators_gw::gw::{Indicators, IndicatorsGateway};
-use bc_signals_gw::gw_ready::{SignalsReady, SignalsReadyGateway};
+use bc_signals_gw::gw::{SignalsReady, SignalsReadyGateway};
 
 fn get_signals_ready_from_settings_1(c: &mut Criterion) {
     let s = SETTINGS_SIGNALS::from_iter([(
         "th_1".to_string(),
         SETTINGS_SIGNAL {
             key: "th".to_string(),
-            used_src: vec![SETTINGS_USED_STRING_USIZE { index: 1, sub_from_last_i: 0 }],
+            used_src: vec![SETTINGS_USED_USIZE { index: 1, sub_from_last_i: 0 }],
             ..Default::default()
         },
     )]);
@@ -39,7 +39,7 @@ fn get_signals_ready_from_settings_2(c: &mut Criterion) {
             "trend_ma_1".to_string(),
             SETTINGS_IND {
                 key: "trend_ma".to_string(),
-                used_src: vec![SETTINGS_USED_STRING_USIZE { index: 1, sub_from_last_i: 0 }],
+                used_src: vec![SETTINGS_USED_USIZE { index: 1, sub_from_last_i: 0 }],
                 ..Default::default()
             },
         ),
@@ -48,7 +48,7 @@ fn get_signals_ready_from_settings_2(c: &mut Criterion) {
             SETTINGS_IND {
                 key: "repeat".to_string(),
                 kwargs_f64: MAP::from_iter([("value".to_string(), 1.0)]),
-                used_src: vec![SETTINGS_USED_STRING_USIZE { index: 1, sub_from_last_i: 0 }],
+                used_src: vec![SETTINGS_USED_USIZE { index: 1, sub_from_last_i: 0 }],
                 ..Default::default()
             },
         ),
