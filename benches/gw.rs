@@ -1,8 +1,6 @@
-use std::hash::DefaultHasher;
 use std::hint::black_box;
 
-use bc_pack_indicators::PACK as PACK_IND;
-use bc_pack_signals::PACK as PACK_SR;
+use bc_packs::{PACK_IND, PACK_SIGN};
 use bc_test_kit::prelude::*;
 use bc_utils_lg::structs::settings::{
     SETTINGS_IND, SETTINGS_INDS, SETTINGS_SIGNAL, SETTINGS_SIGNALS, SETTINGS_USED_USIZE,
@@ -36,7 +34,7 @@ fn get_signals_from_settings_1(c: &mut Criterion) {
         &s,
         &bind,
         &bind2,
-        &PACK_SR(),
+        &PACK_SIGN,
         &SRC_TRANSPOSE,
         &bind6,
         &bind7,
@@ -111,14 +109,14 @@ fn get_signals_from_settings_2(c: &mut Criterion) {
     let settings_signals_train = Default::default();
     let map_signals_train = Default::default();
     let signals_train = Default::default();
-    let indicators = Indicators::new(&settings_indicators, &PACK_IND(), &SRC_TRANSPOSE);
+    let indicators = Indicators::new(&settings_indicators, &PACK_IND, &SRC_TRANSPOSE);
     let indicators_gw = IndicatorsGateway::new(&indicators, &settings_indicators);
     let indications = indicators_gw.indications_series(&SRC_TRANSPOSE);
     let signals = Signals::new(
         &settings_signals,
         &settings_signals_train,
         &settings_indicators,
-        &PACK_SR(),
+        &PACK_SIGN,
         &SRC_TRANSPOSE,
         &map_signals_train,
         &indicators.indicators_without_bf,

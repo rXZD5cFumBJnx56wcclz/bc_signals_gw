@@ -107,7 +107,7 @@ pub fn get_map<'a>(
     map_signals: &MAP<&'a str, Box<dyn SignalReady>>,
     map_signals_train: &MAP<&'a str, Box<dyn SignalTrain>>,
     map_indicators: &MAP<&'a str, Box<dyn Indicator>>,
-) -> MAP<&'a str, (BF_SIGNALS<'a>, Box<dyn SignalReady>)> {
+) -> MAP<&'a str, Box<dyn SignalReady>> {
     s_signals
         .iter()
         .map(|(signal_name, settings_signal)| {
@@ -116,32 +116,27 @@ pub fn get_map<'a>(
                 .into_iter()
                 .map(|v| v[..v.len() - 1].to_vec())
                 .collect::<Vec<Vec<f64>>>();
-            (
-                signal_name.as_str(),
-                (
-                    signal.bf(
-                        &get_src_signals_train(
-                            &settings_signal,
-                            s_inds,
-                            s_signals_train,
-                            src,
-                            map_indicators,
-                            map_signals_train,
-                        ),
-                        &get_signals(
-                            &settings_signal.used_signals,
-                            s_signals,
-                            s_signals_train,
-                            s_inds,
-                            src,
-                            map_signals,
-                            map_signals_train,
-                            map_indicators,
-                        ),
-                    ),
-                    signal,
+            signal.init_bf(
+                &get_src_signals_train(
+                    &settings_signal,
+                    s_inds,
+                    s_signals_train,
+                    src,
+                    map_indicators,
+                    map_signals_train,
                 ),
-            )
+                &get_signals(
+                    &settings_signal.used_signals,
+                    s_signals,
+                    s_signals_train,
+                    s_inds,
+                    src,
+                    map_signals,
+                    map_signals_train,
+                    map_indicators,
+                ),
+            );
+            (signal_name.as_str(), signal)
         })
         .collect()
 }
@@ -149,7 +144,7 @@ pub fn get_map<'a>(
 #[derive(Default)]
 pub struct Signals<'a> {
     pub signals_without_bf: MAP<&'a str, Box<dyn SignalReady>>,
-    pub signals: MAP<&'a str, (BF_SIGNALS<'a>, Box<dyn SignalReady>)>,
+    pub signals: MAP<&'a str, Box<dyn SignalReady>>,
 }
 
 impl<'a> Signals<'a> {
@@ -241,11 +236,9 @@ impl<'a> SignalsGateway<'a> {
                 let signal = unsafe { &(&(*self.signals).signals)[key_uniq_str] };
                 map.insert(
                     key_uniq_str,
-                    signal.1.signal_with_bf(
+                    signal.signal_with_bf(
                         &get_src_series(&setting.1, src_transpose, indications, signals_train),
                         &get_signals_series(&setting.1, &map),
-                        &signal.0,
-                        0,
                     ),
                 );
                 map
@@ -259,7 +252,7 @@ impl<'a> SignalsGateway<'a> {
                 let signal = unsafe { &(&(*self.signals).signals)[key_uniq] };
                 (
                     key_uniq,
-                    signal.1.signals_vec(
+                    signal.signals_vec(
                         &get_src_signals_train(
                             setting,
                             unsafe { &*self.settings_indicators },
@@ -291,9 +284,7 @@ mod tests {
     use std::any::Any;
 
     use bc_indicators::{repeat::REPEAT, trend_ma::TREND_MA};
-    use bc_pack_indicators::PACK as PACK_IND;
-    use bc_pack_signals::PACK as PACK_SR;
-    use bc_pack_signals_train::PACK as PACK_ST;
+    use bc_packs::{PACK_IND, PACK_SIGN, PACK_SIGN_TR};
     use bc_signals::{change_signal::CHANGE_SIGNAL, convert::CONVERT, invert::INVERT, th::TH};
     use bc_signals_train_gw::gw::SignalsTrainGateway;
     use bc_test_kit::prelude::*;
@@ -314,8 +305,7 @@ mod tests {
                 ..Default::default()
             },
         )]);
-        let pack = PACK_SR();
-        let res = get_map_from_pack(&settings, &pack);
+        let res = get_map_from_pack(&settings, &PACK_SIGN);
         let res_1 = res.get("th_1").unwrap().as_ref();
         let rsi_test_1 = TH::default();
         let rsi_test_2 = (res_1 as &dyn Any).downcast_ref::<TH>().unwrap();
@@ -376,11 +366,11 @@ mod tests {
             ),
         ]);
         let settings_signals_train = Default::default();
-        let indicators = Indicators::new(&settings_indicators, &PACK_IND(), &SRC_TRANSPOSE);
+        let indicators = Indicators::new(&settings_indicators, &PACK_IND, &SRC_TRANSPOSE);
         let signals_train = SignalsTrain::new(
             &settings_signals_train,
             &settings_indicators,
-            &PACK_ST(),
+            &PACK_SIGN_TR,
             &SRC_TRANSPOSE,
             &indicators.indicators_without_bf,
         );
@@ -388,7 +378,7 @@ mod tests {
             &settings_signals,
             &settings_signals_train,
             &settings_indicators,
-            &PACK_SR(),
+            &PACK_SIGN,
             &SRC_TRANSPOSE,
             &signals_train.signals_train_without_bf,
             &indicators.indicators_without_bf,
@@ -417,7 +407,7 @@ mod tests {
             &vec![vec![
                 CHANGE_SIGNAL::default().signal(
                     &vec![],
-                    &CONVERT::default()
+                    &CONVERT
                         .signals_vec(
                             &TREND_MA::default()
                                 .ind_vec(
@@ -494,11 +484,11 @@ mod tests {
             ),
         ]);
         let settings_signals_train = Default::default();
-        let indicators = Indicators::new(&settings_indicators, &PACK_IND(), &SRC_TRANSPOSE);
+        let indicators = Indicators::new(&settings_indicators, &PACK_IND, &SRC_TRANSPOSE);
         let signals_train = SignalsTrain::new(
             &settings_signals_train,
             &settings_indicators,
-            &PACK_ST(),
+            &PACK_SIGN_TR,
             &SRC_TRANSPOSE,
             &indicators.indicators_without_bf,
         );
@@ -506,19 +496,11 @@ mod tests {
             &settings_signals,
             &settings_signals_train,
             &settings_indicators,
-            &PACK_SR(),
+            &PACK_SIGN,
             &SRC_TRANSPOSE,
             &signals_train.signals_train_without_bf,
             &indicators.indicators_without_bf,
         );
-        let indicators_gw = IndicatorsGateway::new(&indicators, &settings_indicators);
-        let signals_train_gw = SignalsTrainGateway::new(
-            &signals_train,
-            &indicators,
-            &settings_signals_train,
-            &settings_indicators,
-        );
-        let indications = indicators_gw.indications_series(&SRC_TRANSPOSE);
         let signals_gw = SignalsGateway::new(
             &signals,
             &signals_train,
@@ -533,7 +515,7 @@ mod tests {
             &CHANGE_SIGNAL::default()
                 .signals_vec(
                     &vec![],
-                    &CONVERT::default()
+                    &CONVERT
                         .signals_vec(
                             &TREND_MA::default()
                                 .ind_vec(
