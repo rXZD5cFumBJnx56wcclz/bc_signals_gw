@@ -8,8 +8,8 @@ use bc_utils_lg::structs::settings::{
 use bc_utils_lg::types::maps::MAP;
 use criterion::{Criterion, criterion_group, criterion_main};
 
-use bc_indicators_gw::gw::{Indicators, IndicatorsGateway};
-use bc_signals_gw::gw::{Signals, SignalsGateway};
+use bc_indicators_gw::gw::{Indicators, IndicatorsExt, IndicatorsGateway};
+use bc_signals_gw::gw::{Signals, SignalsExt, SignalsGateway};
 
 fn get_signals_from_settings_1(c: &mut Criterion) {
     let s = SETTINGS_SIGNALS::from_iter([(
@@ -34,10 +34,10 @@ fn get_signals_from_settings_1(c: &mut Criterion) {
         &s,
         &bind,
         &bind2,
-        &PACK_SIGN,
         &SRC_TRANSPOSE,
         &bind6,
         &bind7,
+        &PACK_SIGN,
     );
     let bind8 = Default::default();
     let bind9 = Default::default();
@@ -109,17 +109,17 @@ fn get_signals_from_settings_2(c: &mut Criterion) {
     let settings_signals_train = Default::default();
     let map_signals_train = Default::default();
     let signals_train = Default::default();
-    let indicators = Indicators::new(&settings_indicators, &PACK_IND, &SRC_TRANSPOSE);
+    let indicators = Indicators::new(&SRC_TRANSPOSE, &settings_indicators, &PACK_IND);
     let indicators_gw = IndicatorsGateway::new(&indicators, &settings_indicators);
     let indications = indicators_gw.indications_series(&SRC_TRANSPOSE);
     let signals = Signals::new(
         &settings_signals,
         &settings_signals_train,
         &settings_indicators,
-        &PACK_SIGN,
         &SRC_TRANSPOSE,
         &map_signals_train,
-        &indicators.indicators_without_bf,
+        &indicators,
+        &PACK_SIGN,
     );
     let signals_gw = SignalsGateway::new(
         &signals,

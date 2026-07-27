@@ -7,10 +7,7 @@ use bc_signals_train_gw::gw::SignalsTrain;
 use bc_signals_train_gw::gw::get_src as get_src_signals_train;
 use bc_utils::other::{procedure_used, transpose, vec_len_sync_set};
 use bc_utils_lg::structs::settings::{SETTINGS_INDS, SETTINGS_SIGNAL, SETTINGS_SIGNALS};
-use bc_utils_lg::{
-    structs::settings::SETTINGS,
-    types::maps::{MAP, PACK},
-};
+use bc_utils_lg::types::maps::{MAP, PACK};
 
 pub fn get_signals<'a>(
     used_signals: &Vec<String>,
@@ -85,111 +82,100 @@ fn get_src_series(
     res
 }
 
-pub fn get_map_from_pack<'a>(
-    settings: &'a SETTINGS_SIGNALS,
-    pack: &PACK<SETTINGS_SIGNAL, Box<dyn SignalReady>>,
-) -> MAP<&'a str, Box<dyn SignalReady>> {
-    settings
-        .iter()
-        .map(|(signal_name, settings_signal)| {
-            let signal = pack[settings_signal.key.as_str()](settings_signal);
-            (signal_name.as_str(), signal)
-        })
-        .collect()
+pub type Signals<'a> = MAP<&'a str, Box<dyn SignalReady>>;
+
+pub trait SignalsExt<'a> {
+    fn new_empty_bf(
+        s_signals: &'a SETTINGS_SIGNALS,
+        pack: &PACK<SETTINGS_SIGNAL, Box<dyn SignalReady>>,
+    ) -> Self;
+    fn init_bf(
+        &self,
+        s_signals: &'a SETTINGS_SIGNALS,
+        s_signals_train: &'a SETTINGS_SIGNALS,
+        s_inds: &'a SETTINGS_INDS,
+        buffer: &[Vec<f64>],
+        map_signals_train: &MAP<&'a str, Box<dyn SignalTrain>>,
+        map_indicators: &MAP<&'a str, Box<dyn Indicator>>,
+    );
+    fn new(
+        s_signals: &'a SETTINGS_SIGNALS,
+        s_signals_train: &'a SETTINGS_SIGNALS,
+        s_inds: &'a SETTINGS_INDS,
+        buffer: &[Vec<f64>],
+        map_signals_train: &MAP<&'a str, Box<dyn SignalTrain>>,
+        map_indicators: &MAP<&'a str, Box<dyn Indicator>>,
+        pack: &PACK<SETTINGS_SIGNAL, Box<dyn SignalReady>>,
+    ) -> Self;
 }
 
-pub fn get_map<'a>(
-    s_signals: &'a SETTINGS_SIGNALS,
-    s_signals_train: &'a SETTINGS_SIGNALS,
-    s_inds: &'a SETTINGS_INDS,
-    pack: &PACK<SETTINGS_SIGNAL, Box<dyn SignalReady>>,
-    src_transpose: &[Vec<f64>],
-    map_signals: &MAP<&'a str, Box<dyn SignalReady>>,
-    map_signals_train: &MAP<&'a str, Box<dyn SignalTrain>>,
-    map_indicators: &MAP<&'a str, Box<dyn Indicator>>,
-) -> MAP<&'a str, Box<dyn SignalReady>> {
-    s_signals
-        .iter()
-        .map(|(signal_name, settings_signal)| {
-            let signal = pack[settings_signal.key.as_str()](settings_signal);
-            let src = &src_transpose
-                .into_iter()
-                .map(|v| v[..v.len() - 1].to_vec())
-                .collect::<Vec<Vec<f64>>>();
-            signal.init_bf(
+impl<'a> SignalsExt<'a> for Signals<'a> {
+    fn new_empty_bf(
+        s_signals: &'a SETTINGS_SIGNALS,
+        pack: &PACK<SETTINGS_SIGNAL, Box<dyn SignalReady>>,
+    ) -> Self {
+        s_signals
+            .iter()
+            .map(|(signal_name, settings_signal)| {
+                let signal = pack[settings_signal.key.as_str()](settings_signal);
+                (signal_name.as_str(), signal)
+            })
+            .collect()
+    }
+    fn init_bf(
+        &self,
+        s_signals: &'a SETTINGS_SIGNALS,
+        s_signals_train: &'a SETTINGS_SIGNALS,
+        s_inds: &'a SETTINGS_INDS,
+        buffer: &[Vec<f64>],
+        signals_train: &SignalsTrain,
+        indicators: &Indicators,
+    ) {
+        let signals_train = signals_train.clone();
+        let indicators = indicators.clone();
+        let signals = self.clone();
+        for (k, s) in s_signals {
+            self[k.as_str()].init_bf(
                 &get_src_signals_train(
-                    &settings_signal,
+                    s,
                     s_inds,
                     s_signals_train,
-                    src,
-                    map_indicators,
-                    map_signals_train,
+                    buffer,
+                    &indicators,
+                    &signals_train,
                 ),
                 &get_signals(
-                    &settings_signal.used_signals,
+                    &s.used_signals,
                     s_signals,
                     s_signals_train,
                     s_inds,
-                    src,
-                    map_signals,
-                    map_signals_train,
-                    map_indicators,
+                    buffer,
+                    &signals,
+                    &signals_train,
+                    &indicators,
                 ),
             );
-            (signal_name.as_str(), signal)
-        })
-        .collect()
-}
-
-#[derive(Default)]
-pub struct Signals<'a> {
-    pub signals_without_bf: MAP<&'a str, Box<dyn SignalReady>>,
-    pub signals: MAP<&'a str, Box<dyn SignalReady>>,
-}
-
-impl<'a> Signals<'a> {
-    pub fn new(
-        s_signals: &'a SETTINGS_SIGNALS,
-        s_signals_train: &'a SETTINGS_SIGNALS,
-        s_indicators: &'a SETTINGS_INDS,
-        pack: &PACK<SETTINGS_SIGNAL, Box<dyn SignalReady>>,
-        src_transpose: &[Vec<f64>],
-        map_signals_train: &MAP<&'a str, Box<dyn SignalTrain>>,
-        map_indicators: &MAP<&'a str, Box<dyn Indicator>>,
-    ) -> Self {
-        let signals_without_bf = get_map_from_pack(s_signals, pack);
-        Self {
-            signals: get_map(
-                s_signals,
-                s_signals_train,
-                s_indicators,
-                pack,
-                src_transpose,
-                &signals_without_bf,
-                map_signals_train,
-                map_indicators,
-            ),
-            signals_without_bf,
         }
     }
-    pub fn update_bf<'b>(
-        &mut self,
-        src_transpose: &[Vec<f64>],
-        s: &'a SETTINGS,
-        fa: &'b PACK<SETTINGS_SIGNAL, Box<dyn SignalReady>>,
+    fn new(
+        s_signals: &'a SETTINGS_SIGNALS,
+        s_signals_train: &'a SETTINGS_SIGNALS,
+        s_inds: &'a SETTINGS_INDS,
+        buffer: &[Vec<f64>],
         map_signals_train: &MAP<&'a str, Box<dyn SignalTrain>>,
-        indicators_without_bf: &MAP<&'a str, Box<dyn Indicator>>,
-    ) {
-        self.signals = get_map(
-            &s.pipeline.signals,
-            &s.pipeline.signals_train,
-            &s.pipeline.indications,
-            fa,
-            src_transpose,
-            &self.signals_without_bf,
+        map_indicators: &MAP<&'a str, Box<dyn Indicator>>,
+        pack: &PACK<SETTINGS_SIGNAL, Box<dyn SignalReady>>,
+    ) -> Self {
+        let bind = Signals::new_empty_bf(s_signals, pack);
+        bind.init_bf(
+            s_signals,
+            s_signals_train,
+            s_inds,
+            buffer,
             map_signals_train,
-            indicators_without_bf,
+            map_indicators,
         );
+        bind
     }
 }
 
@@ -233,10 +219,9 @@ impl<'a> SignalsGateway<'a> {
             .iter()
             .fold(MAP::default(), |mut map, setting| {
                 let key_uniq_str = setting.0.as_str();
-                let signal = unsafe { &(&(*self.signals).signals)[key_uniq_str] };
                 map.insert(
                     key_uniq_str,
-                    signal.signal_with_bf(
+                    unsafe { &*self.signals }[key_uniq_str].signal_with_bf(
                         &get_src_series(&setting.1, src_transpose, indications, signals_train),
                         &get_signals_series(&setting.1, &map),
                     ),
@@ -244,12 +229,17 @@ impl<'a> SignalsGateway<'a> {
                 map
             })
     }
+    pub fn execute_bf(&self) {
+        for s in unsafe { &*self.signals }.values() {
+            s.execute_bf();
+        }
+    }
     pub fn signals_vec(&self, src_transpose: &[Vec<f64>]) -> MAP<&'a str, Vec<Signal>> {
         unsafe { &*self.settings_signals }
             .iter()
             .map(|(k, setting)| {
                 let key_uniq = k.as_str();
-                let signal = unsafe { &(&(*self.signals).signals)[key_uniq] };
+                let signal = &unsafe { &*self.signals }[key_uniq];
                 (
                     key_uniq,
                     signal.signals_vec(
@@ -258,8 +248,8 @@ impl<'a> SignalsGateway<'a> {
                             unsafe { &*self.settings_indicators },
                             unsafe { &*self.settings_signals_train },
                             src_transpose,
-                            &unsafe { &*self.indicators }.indicators_without_bf,
-                            &unsafe { &*self.signals_train }.signals_train_without_bf,
+                            unsafe { &*self.indicators },
+                            unsafe { &*self.signals_train },
                         ),
                         &get_signals(
                             &setting.used_signals,
@@ -267,9 +257,9 @@ impl<'a> SignalsGateway<'a> {
                             unsafe { &*self.settings_signals_train },
                             unsafe { &*self.settings_indicators },
                             src_transpose,
-                            unsafe { &(*self.signals).signals_without_bf },
-                            unsafe { &(*self.signals_train).signals_train_without_bf },
-                            unsafe { &(*self.indicators).indicators_without_bf },
+                            unsafe { &*self.signals },
+                            unsafe { &*self.signals_train },
+                            unsafe { &*self.indicators },
                         ),
                     ),
                 )
@@ -286,15 +276,15 @@ mod tests {
     use bc_indicators::{repeat::REPEAT, trend_ma::TREND_MA};
     use bc_packs::{PACK_IND, PACK_SIGN, PACK_SIGN_TR};
     use bc_signals::{change_signal::CHANGE_SIGNAL, convert::CONVERT, invert::INVERT, th::TH};
-    use bc_signals_train_gw::gw::SignalsTrainGateway;
+    use bc_signals_train_gw::gw::{SignalsTrainExt, SignalsTrainGateway};
     use bc_test_kit::prelude::*;
     use bc_utils_lg::structs::settings::{
         SETTINGS_IND, SETTINGS_INDS, SETTINGS_SIGNAL, SETTINGS_SIGNALS, SETTINGS_USED_USIZE,
     };
     use bc_utils_lg::types::maps::MAP;
-    use pretty_assertions::assert_eq as assert_eq_pr;
+    use pretty_assertions::{assert_eq as assert_eq_pr, assert_ne as assert_ne_pr};
 
-    use bc_indicators_gw::gw::IndicatorsGateway;
+    use bc_indicators_gw::gw::{IndicatorsExt, IndicatorsGateway};
 
     #[test]
     fn signals_from_settings_without_bf_res_1() {
@@ -305,7 +295,7 @@ mod tests {
                 ..Default::default()
             },
         )]);
-        let res = get_map_from_pack(&settings, &PACK_SIGN);
+        let res = Signals::new_empty_bf(&settings, &PACK_SIGN);
         let res_1 = res.get("th_1").unwrap().as_ref();
         let rsi_test_1 = TH::default();
         let rsi_test_2 = (res_1 as &dyn Any).downcast_ref::<TH>().unwrap();
@@ -365,23 +355,24 @@ mod tests {
                 },
             ),
         ]);
+        let buffer = &transpose(transpose(SRC_TRANSPOSE.to_vec())[..49].to_vec());
         let settings_signals_train = Default::default();
-        let indicators = Indicators::new(&settings_indicators, &PACK_IND, &SRC_TRANSPOSE);
+        let indicators = Indicators::new(&buffer, &settings_indicators, &PACK_IND);
         let signals_train = SignalsTrain::new(
             &settings_signals_train,
             &settings_indicators,
+            &buffer,
+            &indicators,
             &PACK_SIGN_TR,
-            &SRC_TRANSPOSE,
-            &indicators.indicators_without_bf,
         );
         let signals = Signals::new(
             &settings_signals,
             &settings_signals_train,
             &settings_indicators,
+            &buffer,
+            &signals_train,
+            &indicators,
             &PACK_SIGN,
-            &SRC_TRANSPOSE,
-            &signals_train.signals_train_without_bf,
-            &indicators.indicators_without_bf,
         );
         let indicators_gw = IndicatorsGateway::new(&indicators, &settings_indicators);
         let signals_train_gw = SignalsTrainGateway::new(
@@ -428,6 +419,64 @@ mod tests {
             ]],
         );
         assert_eq_pr!(res_1, res_2);
+    }
+
+    #[test]
+    fn signals_execute_bf_res_1() {
+        let settings_signals = SETTINGS_SIGNALS::from_iter([(
+            "th_1".to_string(),
+            SETTINGS_SIGNAL {
+                key: "th".to_string(),
+                used_src: vec![SETTINGS_USED_USIZE {
+                    index: 1,
+                    ..Default::default()
+                }],
+                kwargs_f64: MAP::from_iter([
+                    ("th_min".to_string(), 0.00000001),
+                    ("th_max".to_string(), 0.00000001),
+                ]),
+                ..Default::default()
+            },
+        )]);
+        let s_inds = Default::default();
+        let s_sign_train = Default::default();
+        let indicators = Default::default();
+        let signals_train = Default::default();
+        let signals = Signals::new(
+            &settings_signals,
+            &s_sign_train,
+            &s_inds,
+            &transpose(SRC[..49].to_vec()),
+            &signals_train,
+            &indicators,
+            &PACK_SIGN,
+        );
+        let signals_gw = SignalsGateway::new(
+            &signals,
+            &signals_train,
+            &indicators,
+            &s_sign_train,
+            &settings_signals,
+            &s_inds,
+        );
+        let indications = Default::default();
+        let signals_train = Default::default();
+        assert_eq_pr!(
+            signals_gw.signals_series(&indications, &signals_train, &SRC_TRANSPOSE),
+            signals_gw.signals_series(&indications, &signals_train, &SRC_TRANSPOSE),
+        );
+        assert_ne_pr!(
+            {
+                let bind = signals_gw.signals_series(&indications, &signals_train, &SRC_TRANSPOSE);
+                signals_gw.execute_bf();
+                bind
+            },
+            {
+                let bind = signals_gw.signals_series(&indications, &signals_train, &SRC_TRANSPOSE);
+                signals_gw.execute_bf();
+                bind
+            },
+        );
     }
 
     #[test]
@@ -484,22 +533,22 @@ mod tests {
             ),
         ]);
         let settings_signals_train = Default::default();
-        let indicators = Indicators::new(&settings_indicators, &PACK_IND, &SRC_TRANSPOSE);
+        let indicators = Indicators::new(&SRC_TRANSPOSE, &settings_indicators, &PACK_IND);
         let signals_train = SignalsTrain::new(
             &settings_signals_train,
             &settings_indicators,
-            &PACK_SIGN_TR,
             &SRC_TRANSPOSE,
-            &indicators.indicators_without_bf,
+            &indicators,
+            &PACK_SIGN_TR,
         );
         let signals = Signals::new(
             &settings_signals,
             &settings_signals_train,
             &settings_indicators,
-            &PACK_SIGN,
             &SRC_TRANSPOSE,
-            &signals_train.signals_train_without_bf,
-            &indicators.indicators_without_bf,
+            &signals_train,
+            &indicators,
+            &PACK_SIGN,
         );
         let signals_gw = SignalsGateway::new(
             &signals,
