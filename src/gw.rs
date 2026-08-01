@@ -28,6 +28,7 @@ fn get_signals_series(s: &SETTINGS_SIGNAL, signals: &MAP<&str, Signal>) -> Vec<S
     signals_arg
 }
 
+#[derive(Default, Clone)]
 pub struct Signals<'a>(pub MAP<&'a str, Box<dyn SignalReady>>);
 
 impl W for Signals<'_> {
@@ -52,7 +53,7 @@ impl<'a> Signals<'a> {
         )
     }
     pub fn w_all(&self, s: &SETTINGS_SIGNALS) -> usize {
-        self.w_map_all(s).values().max().copied().unwrap()
+        self.w_map_all(s).values().max().copied().unwrap_or_default()
     }
 }
 
