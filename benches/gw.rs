@@ -11,8 +11,10 @@ use bc_indicators_gw::gw::Indicators;
 use bc_signals_gw::gw::Signals;
 
 fn series_1(c: &mut Criterion) {
-    let indicators = Indicators::new(&SRC_TRANSPOSE, &INDICATIONS, &PACK_IND);
-    let signals_train = SignalsTrain::new(
+    let mut indicators = Indicators::default();
+    let mut signals_train = SignalsTrain::default();
+    indicators.init(&SRC_TRANSPOSE, &INDICATIONS, &PACK_IND);
+    signals_train.init(
         &SRC_TRANSPOSE,
         &SIGNALS_TRAIN,
         &INDICATIONS,
@@ -21,7 +23,8 @@ fn series_1(c: &mut Criterion) {
     );
     let map_ind = indicators.series(&SRC_TRANSPOSE, &INDICATIONS);
     let map_st = signals_train.series(&SRC_TRANSPOSE, &SIGNALS_TRAIN, &map_ind);
-    let signals = Signals::new(
+    let mut signals = Signals::default();
+    signals.init(
         &SRC_TRANSPOSE,
         &SIGNALS,
         &INDICATIONS,

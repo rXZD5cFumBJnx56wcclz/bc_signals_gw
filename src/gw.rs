@@ -62,11 +62,12 @@ impl<'a> Signals<'a> {
 }
 
 impl<'a> Signals<'a> {
-    pub fn new_empty_bf(
+    pub fn init_empty(
+        &mut self,
         s: &'a SETTINGS_SIGNALS,
         pack: &PACK<SETTINGS_SIGNAL, Box<dyn SignalReady>>,
-    ) -> Self {
-        Signals(
+    ) {
+        *self = Signals(
             s.iter()
                 .map(|(signal_name, settings_signal)| {
                     let signal = pack[settings_signal.key.as_str()](settings_signal);
@@ -119,7 +120,8 @@ impl<'a> Signals<'a> {
             signal.init_bf(&src, &signals);
         }
     }
-    pub fn new(
+    pub fn init(
+        &mut self,
         buffer: &[Vec<f64>],
         s: &'a SETTINGS_SIGNALS,
         s_ind: &'a SETTINGS_INDS,
@@ -127,10 +129,9 @@ impl<'a> Signals<'a> {
         indicators: &Indicators,
         signals_train: &SignalsTrain,
         pack: &PACK<SETTINGS_SIGNAL, Box<dyn SignalReady>>,
-    ) -> Self {
-        let bind = Signals::new_empty_bf(s, pack);
-        bind.init_bf(buffer, s, s_ind, s_signals_train, indicators, signals_train);
-        bind
+    ) {
+        self.init_empty(s, pack);
+        self.init_bf(buffer, s, s_ind, s_signals_train, indicators, signals_train);
     }
 }
 
@@ -194,7 +195,8 @@ mod tests {
 
     #[test]
     fn new_empty_bf_res_1() {
-        let bind = Signals::new_empty_bf(&SIGNALS, &PACK_SIGN);
+        let mut bind = Signals::default();
+        bind.init_empty(&SIGNALS, &PACK_SIGN);
         assert_eq_pr!(
             (bind.0["th_1"].as_ref() as &dyn Any)
                 .downcast_ref::<TH>()
@@ -205,17 +207,19 @@ mod tests {
 
     #[test]
     fn w_all_res_1() {
-        assert_eq_pr!(
-            Signals::new_empty_bf(&SIGNALS, &PACK_SIGN).w_all(&SIGNALS,),
-            2
-        );
+        let mut bind = Signals::default();
+        bind.init_empty(&SIGNALS, &PACK_SIGN);
+        assert_eq_pr!(bind.w_all(&SIGNALS,), 2);
     }
 
     #[test]
     fn init_bf_res_1() {
-        let indicators = Indicators::new_empty_bf(&INDICATIONS, &PACK_IND);
-        let signals_train = SignalsTrain::new_empty_bf(&SIGNALS_TRAIN, &PACK_SIGN_TR);
-        let signals = Signals::new_empty_bf(&SIGNALS, &PACK_SIGN);
+        let mut indicators = Indicators::default();
+        indicators.init_empty(&INDICATIONS, &PACK_IND);
+        let mut signals_train = SignalsTrain::default();
+        signals_train.init_empty(&SIGNALS_TRAIN, &PACK_SIGN_TR);
+        let mut signals = Signals::default();
+        signals.init_empty(&SIGNALS, &PACK_SIGN);
         let w_all = SRC.len() - signals.w_all(&SIGNALS);
         let (buffer_init, buffer_res) = (
             transpose(SRC[..w_all].to_vec()),
@@ -258,13 +262,16 @@ mod tests {
 
     #[test]
     fn series_res_1() {
-        let signals_train = SignalsTrain::new_empty_bf(&SIGNALS_TRAIN, &PACK_SIGN_TR);
-        let indicators = Indicators::new_empty_bf(&INDICATIONS, &PACK_IND);
+        let mut indicators = Indicators::default();
+        indicators.init_empty(&INDICATIONS, &PACK_IND);
+        let mut signals_train = SignalsTrain::default();
+        signals_train.init_empty(&SIGNALS_TRAIN, &PACK_SIGN_TR);
         indicators.init_bf(&SRC_TRANSPOSE, &INDICATIONS);
         signals_train.init_bf(&SRC_TRANSPOSE, &SIGNALS_TRAIN, &INDICATIONS, &indicators);
         let map_ind = indicators.series(&SRC_TRANSPOSE, &INDICATIONS);
         let map_st = signals_train.series(&SRC_TRANSPOSE, &SIGNALS_TRAIN, &map_ind);
-        let signals = Signals::new(
+        let mut signals = Signals::default();
+        signals.init(
             &SRC_TRANSPOSE,
             &SIGNALS,
             &INDICATIONS,
@@ -281,13 +288,16 @@ mod tests {
 
     #[test]
     fn vec_res_1() {
-        let signals_train = SignalsTrain::new_empty_bf(&SIGNALS_TRAIN, &PACK_SIGN_TR);
-        let indicators = Indicators::new_empty_bf(&INDICATIONS, &PACK_IND);
+        let mut indicators = Indicators::default();
+        indicators.init_empty(&INDICATIONS, &PACK_IND);
+        let mut signals_train = SignalsTrain::default();
+        signals_train.init_empty(&SIGNALS_TRAIN, &PACK_SIGN_TR);
         indicators.init_bf(&SRC_TRANSPOSE, &INDICATIONS);
         signals_train.init_bf(&SRC_TRANSPOSE, &SIGNALS_TRAIN, &INDICATIONS, &indicators);
         let map_ind = indicators.vec(&SRC_TRANSPOSE, &INDICATIONS);
         let map_st = signals_train.vec(&SRC_TRANSPOSE, &SIGNALS_TRAIN, &map_ind);
-        let signals = Signals::new(
+        let mut signals = Signals::default();
+        signals.init(
             &SRC_TRANSPOSE,
             &SIGNALS,
             &INDICATIONS,
