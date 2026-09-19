@@ -1,8 +1,6 @@
 use bc_indicators_gw::gw::Indicators;
-use bc_signals::main_trait::SignalReady;
 use bc_signals::prelude::*;
-use bc_signals_train_gw::gw::SignalsTrain;
-use bc_signals_train_gw::gw::{get_src, get_src_series};
+use bc_signals_train_gw::gw::*;
 use bc_utils::other::{transpose, vec_len_sync_set};
 use bc_utils_lg::structs::settings::{SETTINGS_INDS, SETTINGS_SIGNAL, SETTINGS_SIGNALS};
 use bc_utils_lg::traits::w::{w_scan, w_src, w_sum};
@@ -188,8 +186,7 @@ mod tests {
     use bc_packs::{PACK_IND, PACK_SIGN, PACK_SIGN_TR};
     use bc_signals::{invert::INVERT, th::TH};
     use bc_test_kit::prelude::*;
-    use bc_test_kit::settings::signals::SIGNALS;
-    use bc_test_kit::settings::signals_train::SIGNALS_TRAIN;
+    use bc_utils_lg::test_state::prelude::*;
 
     use pretty_assertions::assert_eq as assert_eq_pr;
 
