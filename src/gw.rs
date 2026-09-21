@@ -1,30 +1,9 @@
+use bc_gw_utils::prelude::*;
 use bc_indicators_gw::gw::Indicators;
 use bc_signals::prelude::*;
 use bc_signals_train_gw::gw::*;
-use bc_utils::other::{transpose, vec_len_sync_set};
-use bc_utils_lg::structs::settings::{SETTINGS_INDS, SETTINGS_SIGNAL, SETTINGS_SIGNALS};
-use bc_utils_lg::traits::w::{w_scan, w_src, w_sum};
-use bc_utils_lg::types::maps::{MAP, MAP_LINK, PACK};
-
-pub fn get_signals<'a>(signals: &MAP<&str, Vec<Signal>>, s: &SETTINGS_SIGNAL) -> Vec<Vec<Signal>> {
-    let mut res = vec![];
-    for used_signal in &s.used_signals {
-        res.push(signals[used_signal.as_str()].clone());
-    }
-    if !res.is_empty() {
-        vec_len_sync_set(&mut res);
-        return transpose(res);
-    }
-    Default::default()
-}
-
-fn get_signals_series(s: &SETTINGS_SIGNAL, signals: &MAP<&str, Signal>) -> Vec<Signal> {
-    let mut signals_arg = vec![];
-    for used_signal in &s.used_signals {
-        signals_arg.push(signals[used_signal.as_str()]);
-    }
-    signals_arg
-}
+use bc_utils::other::transpose;
+use bc_utils_lg::prelude::*;
 
 #[derive(Default, Clone)]
 pub struct Signals<'a>(pub MAP<&'a str, Box<dyn SignalReady>>);
@@ -102,8 +81,14 @@ impl<'a> Signals<'a> {
         let mut map_sign = MAP::default();
         for (k, setting) in s.iter() {
             let signal = &self.0[k.as_str()];
-            let src = get_src(buffer, &map_ind, &map_st, setting);
-            let signals = get_signals(&map_sign, setting);
+            let mut src = SrcGw::default();
+            src.push_vec(buffer, &setting.used_src);
+            src.push_map(&map_ind, &setting.used_ind);
+            src.push_map(&map_st, &setting.used_signals_train);
+            src.all_check(&setting.procedure_used_src);
+            let mut signals = SignalsGw::default();
+            signals.push(&map_sign, &setting.used_signals);
+            signals.all_check();
             signal.init_bf(
                 &src.get(..signal.w()).unwrap_or_default(),
                 &signals.get(..signal.w()).unwrap_or_default(),
@@ -142,13 +127,14 @@ impl<'a> Signals<'a> {
         signals_train: &MAP<&str, f64>,
     ) -> MAP<&'a str, Signal> {
         s.iter().fold(MAP::default(), |mut init, (k, setting)| {
-            init.insert(
-                k.as_str(),
-                self.0[k.as_str()].signal(
-                    &get_src_series(buffer, indications, signals_train, setting),
-                    &get_signals_series(setting, &init),
-                ),
-            );
+            let mut src = SrcGwSeries::default();
+            src.push_vec(buffer, &setting.used_src);
+            src.push_map(&indications, &setting.used_ind);
+            src.push_map(&signals_train, &setting.used_signals_train);
+            src.all_check(&setting.procedure_used_src);
+            let mut signals = SignalsGwSeries::default();
+            signals.push(&init, &setting.used_signals);
+            init.insert(k.as_str(), self.0[k.as_str()].signal(&src, &signals));
             init
         })
     }
@@ -166,13 +152,15 @@ impl<'a> Signals<'a> {
     ) -> MAP<&'a str, Vec<Signal>> {
         s.iter().fold(MAP::default(), |mut init, (k, setting)| {
             let signal = &self.0[k.as_str()];
-            init.insert(
-                k.as_str(),
-                signal.signals_vec(
-                    &get_src(buffer, indications, signals_train, setting),
-                    &get_signals(&init, setting),
-                ),
-            );
+            let mut src = SrcGw::default();
+            src.push_vec(buffer, &setting.used_src);
+            src.push_map(&indications, &setting.used_ind);
+            src.push_map(&signals_train, &setting.used_signals_train);
+            src.all_check(&setting.procedure_used_src);
+            let mut signals = SignalsGw::default();
+            signals.push(&init, &setting.used_signals);
+            signals.all_check();
+            init.insert(k.as_str(), signal.signals_vec(&src, &signals));
             init
         })
     }
@@ -187,8 +175,6 @@ mod tests {
     use bc_signals::{invert::INVERT, th::TH};
     use bc_test_kit::prelude::*;
     use bc_utils_lg::test_state::prelude::*;
-
-    use pretty_assertions::assert_eq as assert_eq_pr;
 
     #[test]
     fn new_empty_bf_res_1() {
@@ -235,26 +221,22 @@ mod tests {
             &signals_train,
         );
         let res = signals.0["th_1"].clone();
-        res.init_bf(
-            &get_src(&SRC_TRANSPOSE, &map_ind, &map_st, &SIGNALS["th_1"]),
-            &[],
-        );
+        let mut src = SrcGw::default();
+        src.push_vec(&SRC_TRANSPOSE, &SIGNALS["th_1"].used_src);
+        src.push_map(&map_ind, &SIGNALS["th_1"].used_ind);
+        src.push_map(&map_st, &SIGNALS["th_1"].used_signals_train);
+        src.all_check(&SIGNALS["th_1"].procedure_used_src);
+        res.init_bf(&src, &[]);
 
         let map_ind_series = indicators.series(&SRC_TRANSPOSE, &INDICATIONS);
         let map_st_series = signals_train.series(&SRC_TRANSPOSE, &SIGNALS_TRAIN, &map_ind_series);
         let series = signals.series(&SRC_TRANSPOSE, &SIGNALS, &map_ind_series, &map_st_series);
-        assert_eq_pr!(
-            series["th_1"],
-            res.signal(
-                &get_src_series(
-                    &SRC_TRANSPOSE,
-                    &map_ind_series,
-                    &map_st_series,
-                    &SIGNALS["th_1"]
-                ),
-                &[]
-            )
-        );
+        let mut src_series = SrcGwSeries::default();
+        src_series.push_vec(&SRC_TRANSPOSE, &SIGNALS["th_1"].used_src);
+        src_series.push_map(&map_ind_series, &SIGNALS["th_1"].used_ind);
+        src_series.push_map(&map_st_series, &SIGNALS["th_1"].used_signals_train);
+        src_series.all_check(&SIGNALS["th_1"].procedure_used_src);
+        assert_eq_pr!(series["th_1"], res.signal(&src_series, &[]));
     }
 
     #[test]
@@ -303,10 +285,12 @@ mod tests {
             &signals_train,
             &PACK_SIGN,
         );
-        let res = signals.0["th_1"].clone().signals_vec(
-            &get_src(&SRC_TRANSPOSE, &map_ind, &map_st, &SIGNALS["th_1"]),
-            &[],
-        );
+        let mut src = SrcGw::default();
+        src.push_vec(&SRC_TRANSPOSE, &SIGNALS["th_1"].used_src);
+        src.push_map(&map_ind, &SIGNALS["th_1"].used_ind);
+        src.push_map(&map_st, &SIGNALS["th_1"].used_signals_train);
+        src.all_check(&SIGNALS["th_1"].procedure_used_src);
+        let res = signals.0["th_1"].clone().signals_vec(&src, &[]);
         let vec = signals.vec(&SRC_TRANSPOSE, &SIGNALS, &map_ind, &map_st);
         assert_eq_pr!(vec["th_1"], res,);
         assert_eq_pr!(
